@@ -1,16 +1,23 @@
 // ============================================
 // Planiloja Achadinhos — Configuração
 // ============================================
-// Instruções:
-// 1. Cole abaixo as URLs das abas da sua planilha publicada
-//    (Configurações e Catálogo, publicadas como CSV)
-// 2. Em registrar_cliques, cole a URL do Apps Script que grava
-//    na aba "Cliques" (opcional — a vitrine funciona sem ele)
-// 3. Salve o arquivo e suba na hospedagem junto com o index.html
+// Configuração das fontes de dados da loja
 // ============================================
 
 const ACHADINHOS = {
+
+  // Aba "Configurações" da planilha
   planilha_configuracoes: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTNhGYI1C8BHdTqkrSZc4vg2zbyP0GpTyVLI7WKBb7aEOFTMqMWrknvdQ1_hUyU55weBeo9RiD4_4au/pub?gid=480609827&single=true&output=csv",
+
+  // Aba "Produtos" da planilha
+  // Mantida por enquanto para não quebrar o site
   planilha_catalogo: "https://docs.google.com/spreadsheets/d/e/2PACX-1vTNhGYI1C8BHdTqkrSZc4vg2zbyP0GpTyVLI7WKBb7aEOFTMqMWrknvdQ1_hUyU55weBeo9RiD4_4au/pub?gid=952991100&single=true&output=csv",
+
+  // Registro de cliques — opcional
   registrar_cliques: "",
+
+  // Nova API do Apps Script
+  // O site passará a buscar os produtos por aqui
+  produtos_api: "https://script.google.com/macros/s/AKfycbxbKrOwaWfEHD8d7Poz7WFYa5j28kw1CzB-hIjSu6w0srFLjD9mvXn0MPVXjb7U5BzLKQ/exec?acao=produtos"
+
 };
