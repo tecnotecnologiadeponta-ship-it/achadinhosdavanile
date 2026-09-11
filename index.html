@@ -1453,7 +1453,7 @@
     let currentProduct = null;
 
     // ============================================
-    // CSV PARSER (mantido para a aba Configurações)
+    // CSV PARSER
     // ============================================
     function parseCSV(text) {
       const lines = [];
@@ -1466,14 +1466,9 @@
           else { inQuotes = !inQuotes; }
         } else if (ch === ',' && !inQuotes) {
           lines.push(current); current = '';
-        } else if ((ch === '
-' || ch === '
-') && !inQuotes) {
-          if (ch === '
-' && text[i + 1] === '
-') i++;
-          lines.push(current); current = ''; lines.push('
-');
+        } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+          if (ch === '\r' && text[i + 1] === '\n') i++;
+          lines.push(current); current = ''; lines.push('\n');
         } else { current += ch; }
       }
       if (current) lines.push(current);
@@ -1481,8 +1476,7 @@
       const rows = [];
       let row = [];
       for (const token of lines) {
-        if (token === '
-') { if (row.length > 0) rows.push(row); row = []; }
+        if (token === '\n') { if (row.length > 0) rows.push(row); row = []; }
         else { row.push(token.trim()); }
       }
       if (row.length > 0) rows.push(row);
@@ -1552,17 +1546,33 @@
     // ============================================
     async function loadCatalogo() {
       try {
-        const res = await fetch(ACHADINHOS.produtos_api);
+        let url = (typeof ACHADINHOS !== 'undefined' && ACHADINHOS.produtos_api) 
+          ? ACHADINHOS.produtos_api 
+          : 'https://script.google.com/macros/s/AKfycbxbKrOwaWfEHD8d7Poz7WFYa5j28kw1CzB-hIjSu6w0srFLjD9mvXn0MPVXjb7U5BzLKQ/exec?acao=produtos';
+
+        if (!url.includes('acao=produtos')) {
+          url += (url.includes('?') ? '&' : '?') + 'acao=produtos';
+        }
+        url += '&_t=' + Date.now();
+
+        const res = await fetch(url, {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        if (!res.ok) {
+          throw new Error('Falha na requisição: ' + res.status);
+        }
+
         const data = await res.json();
 
-        if (data.status !== 'ok') {
-          throw new Error('Erro na API: ' + data.mensagem);
+        if (data.status !== 'ok' || !Array.isArray(data.produtos)) {
+          throw new Error('Retorno da API inválido.');
         }
 
         const products = [];
-        
         for (const row of data.produtos) {
-          const ativo = String(row['Ativo *'] || '').trim().toUpperCase();
+          const ativo = String(row['Ativo *'] || row['Ativo'] || '').trim().toUpperCase();
           if (ativo !== 'SIM') continue;
 
           products.push({
@@ -1573,14 +1583,14 @@
             subcategoria: String(row['Subcategoria'] || '').trim(),
             nome: String(row['Nome'] || '').trim(),
             descricao: String(row['Descrição'] || '').trim(),
-            preco: parsePrecoBR(String(row['Preço *'] || '')),
+            preco: parsePrecoBR(String(row['Preço *'] || row['Preço'] || '')),
             precoPromo: row['Preço Promocional'] ? parsePrecoBR(String(row['Preço Promocional'])) : null,
             cupom: String(row['Cupom'] || '').trim(),
             validade: parseDataBR(String(row['Validade da oferta'] || '')),
             linkAfiliado: String(row['Link de Afiliado'] || '').trim(),
             textoBotao: String(row['Texto do Botão'] || '').trim(),
             video: String(row['Vídeo (URL YouTube)'] || '').trim(),
-            img1: fixImg(String(row['Imagem 1 *'] || '').trim()),
+            img1: fixImg(String(row['Imagem 1 *'] || row['Imagem 1'] || '').trim()),
             img2: fixImg(String(row['Imagem 2'] || '').trim()),
             img3: fixImg(String(row['Imagem 3'] || '').trim()),
             img4: fixImg(String(row['Imagem 4'] || '').trim()),
@@ -1588,11 +1598,10 @@
             destaque: String(row['Destaque'] || '').trim().toUpperCase() === 'SIM',
           });
         }
-        
         PRODUCTS = products.filter(p => p.nome && p.linkAfiliado && ofertaValida(p));
-      } catch(erro) {
-        console.error("Falha ao carregar os produtos:", erro);
-        throw erro;
+      } catch (err) {
+        console.error('Erro ao carregar catálogo da API:', err);
+        throw err;
       }
     }
 
@@ -1606,6 +1615,7 @@
     }
 
     function ofertaValida(p) {
+      // Sem validade = sempre válido; com validade = válido até 23h59 da data
       if (!p.validade) return true;
       return new Date() <= p.validade;
     }
@@ -1665,6 +1675,7 @@
       }
 
       // Colors
+      // Resolve primary color (name or hex)
       if (CONFIG.corPrimaria) {
         var primaryHex = nameToHex(CONFIG.corPrimaria) || CONFIG.corPrimaria;
         document.documentElement.style.setProperty('--primary', primaryHex);
@@ -1675,6 +1686,7 @@
         document.documentElement.style.setProperty('--primary-rgb', r + ', ' + g + ', ' + b);
         document.documentElement.style.setProperty('--primary-light', 'rgba(' + r + ', ' + g + ', ' + b + ', 0.08)');
         document.documentElement.style.setProperty('--primary-hover', 'rgb(' + Math.max(0,r-20) + ', ' + Math.max(0,g-20) + ', ' + Math.max(0,b-20) + ')');
+        // Auto-generate secondary (dark version of primary)
         var secondaryHex = darkenColor(primaryHex, 0.18);
         document.documentElement.style.setProperty('--secondary', secondaryHex);
         var sr = parseInt(secondaryHex.replace('#','').substr(0,2), 16);
@@ -1702,7 +1714,7 @@
           wrapperOpen = `<a href="${hasLink}" class="banner-wrap">`;
           wrapperClose = `</a>`;
         } else if (hasLink) {
-          wrapperOpen = `<div class="banner-wrap" style="cursor:pointer" onclick="bannerFilter('${hasLink.replace(/'/g, "\'")}')">`;
+          wrapperOpen = `<div class="banner-wrap" style="cursor:pointer" onclick="bannerFilter('${hasLink.replace(/'/g, "\\'")}')">`;
           wrapperClose = `</div>`;
         } else {
           wrapperOpen = `<div class="banner-wrap">`;
@@ -1799,7 +1811,7 @@
     }
     function buildCategoryNav() {
       document.getElementById("catNav").innerHTML = getCategories().map(c =>
-        `<button class="cat-btn ${c === activeCategory ? 'active' : ''}" onclick="selectCategory('${c.replace(/'/g, "\'")}')">${c}</button>`
+        `<button class="cat-btn ${c === activeCategory ? 'active' : ''}" onclick="selectCategory('${c.replace(/'/g, "\\'")}')">${c}</button>`
       ).join("");
     }
     function selectCategory(cat) {
@@ -1813,7 +1825,7 @@
       if (!subs.length) { bar.classList.remove("show"); return; }
       bar.classList.add("show");
       bar.innerHTML = `<button class="subcat-btn ${!activeSubcategory ? 'active' : ''}" onclick="selectSubcategory(null)">Todos</button>` +
-        subs.map(s => `<button class="subcat-btn ${activeSubcategory === s ? 'active' : ''}" onclick="selectSubcategory('${s.replace(/'/g, "\'")}')">${s}</button>`).join("");
+        subs.map(s => `<button class="subcat-btn ${activeSubcategory === s ? 'active' : ''}" onclick="selectSubcategory('${s.replace(/'/g, "\\'")}')">${s}</button>`).join("");
     }
     function selectSubcategory(sub) { activeSubcategory = sub; buildSubcategoryBar(); renderProducts(); }
 
@@ -1887,7 +1899,7 @@
       document.getElementById("galleryThumbs").innerHTML = imgs.length > 1 ? imgs.map((img, i) =>
         `<div class="gallery-thumb ${i === 0 ? 'active' : ''}" onclick="switchImage('${img}', this)"><img src="${img}" alt=""></div>`
       ).join("") : "";
-      
+      // Badge de plataforma + tipo no topo
       var catParts = [];
       if (currentProduct.plataforma) catParts.push(currentProduct.plataforma);
       if (currentProduct.tipo === 'DIGITAL') catParts.push('Digital');
@@ -1906,18 +1918,18 @@
         priceEl.innerHTML = '';
       }
       document.getElementById("modalDesc").textContent = currentProduct.descricao;
-      
+      // Cupom (com botão copiar)
       document.getElementById('modalCoupon').innerHTML = currentProduct.cupom
         ? '<div class="coupon-box"><div><div class="coupon-label">Cupom de desconto</div><div class="coupon-code">' + currentProduct.cupom + '</div></div><button class="coupon-copy" id="btnCopyCoupon" onclick="copyCoupon()">Copiar cupom</button></div>'
         : '';
-      
+      // Vídeo (YouTube embed)
       var embedUrl = ytEmbed(currentProduct.video);
       document.getElementById('modalVideo').innerHTML = embedUrl
         ? '<div class="video-embed"><iframe src="' + embedUrl + '" title="Vídeo do produto" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>'
         : '';
-      
+      // CTA de saída
       document.getElementById('modalCta').textContent = ctaLabel(currentProduct);
-      
+      // Aviso de preços (apenas se o produto exibir preço)
       var note = document.getElementById('modalPriceNote');
       note.textContent = CONFIG.avisoPrecos || '';
       note.classList.toggle('show', currentProduct.preco > 0);
@@ -1932,7 +1944,6 @@
       document.body.classList.remove('modal-open');
     }
     function switchImage(src, el) { document.getElementById("modalMainImg").src = src; document.querySelectorAll(".gallery-thumb").forEach(t => t.classList.remove("active")); el.classList.add("active"); }
-
     // ============================================
     // AÇÕES DE AFILIADO (CTA, CUPOM, VÍDEO, CANAL)
     // ============================================
@@ -2112,7 +2123,7 @@
 
     function toSlug(text) {
       return text.toLowerCase()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
     }
@@ -2147,11 +2158,13 @@
       });
     }
     function installPixels() {
+      // Facebook Pixel
       if (CONFIG.pixelFacebook) {
         const fb = document.createElement('script');
         fb.textContent = "!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','" + CONFIG.pixelFacebook + "');fbq('track','PageView');";
         document.head.appendChild(fb);
       }
+      // Google Analytics
       if (CONFIG.googleAnalytics) {
         const gaScript = document.createElement('script');
         gaScript.async = true;
@@ -2161,6 +2174,7 @@
         gaInit.textContent = "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','" + CONFIG.googleAnalytics + "');";
         document.head.appendChild(gaInit);
       }
+      // Google Ads
       if (CONFIG.googleAds) {
         if (!CONFIG.googleAnalytics) {
           const adsScript = document.createElement('script');
@@ -2179,16 +2193,19 @@
     }
 
     function trackEvent(eventName, data) {
+      // Facebook — clique de afiliado é a conversão (Lead)
       if (CONFIG.pixelFacebook && typeof fbq !== 'undefined') {
         if (eventName === 'ViewContent') fbq('track', 'ViewContent', { content_name: data.name, value: data.value, currency: 'BRL' });
         else if (eventName === 'ClickOferta') fbq('track', 'Lead', { content_name: data.name, value: data.value, currency: 'BRL' });
         else if (eventName === 'CopiaCupom') fbq('trackCustom', 'CopiaCupom', { content_name: data.name });
       }
+      // Google Analytics
       if (CONFIG.googleAnalytics && typeof gtag !== 'undefined') {
         if (eventName === 'ViewContent') gtag('event', 'view_item', { currency: 'BRL', value: data.value });
         else if (eventName === 'ClickOferta') gtag('event', 'click_oferta', { item_name: data.name, currency: 'BRL', value: data.value });
         else if (eventName === 'CopiaCupom') gtag('event', 'copy_coupon', { item_name: data.name });
       }
+      // Google Ads — conversão disparada no clique do CTA
       if (CONFIG.googleAds && typeof gtag !== 'undefined') {
         if (eventName === 'ClickOferta') gtag('event', 'conversion', { send_to: CONFIG.googleAds, value: data.value, currency: 'BRL' });
       }
@@ -2211,10 +2228,13 @@
     }
     function fixImg(url) {
       if (!url) return '';
+      // https://drive.google.com/file/d/XXXXX/view... → direct link
       let m = url.match(/drive\.google\.com\/file\/d\/([^\/\?]+)/);
       if (m) return 'https://lh3.googleusercontent.com/d/' + m[1];
+      // https://drive.google.com/open?id=XXXXX → direct link
       m = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
       if (m) return 'https://lh3.googleusercontent.com/d/' + m[1];
+      // https://drive.google.com/uc?id=XXXXX → direct link
       m = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/);
       if (m) return 'https://lh3.googleusercontent.com/d/' + m[1];
       return url;
@@ -2223,7 +2243,9 @@
     function parsePrecoBR(val) {
       var s = (val || '').trim();
       if (!s) return 0;
+      // Se tem vírgula: formato BR (ex: 1.299,90 ou 146,90)
       if (s.indexOf(',') !== -1) return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
+      // Sem vírgula: ponto é decimal (ex: 146.90) ou inteiro (ex: 146)
       return parseFloat(s) || 0;
     }
     function showToast(text, priority) {
@@ -2264,7 +2286,7 @@
         applyConfig();
         buildCategoryNav();
         renderProducts();
-        
+        // Check for direct product link
         var urlParams = new URLSearchParams(window.location.search);
         var productSlug = urlParams.get('produto');
         if (productSlug) {
