@@ -1,5 +1,5 @@
 // ============================================
-// Planiloja Achadinhos — Configuração
+// Vanile Achadinhos — Configuração
 // ============================================
 // Configuração das fontes de dados da loja
 // ============================================
